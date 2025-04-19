@@ -1,15 +1,20 @@
 package ex001.ex001.controller;
+
 import ex001.ex001.dto.MemberDTO;
 import ex001.ex001.service.MemberService;
+import ex001.ex001.utils.JwtUtil; // ✅ JwtUtil import 추가
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value; // ✅ secretKey 주입용 import
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @RequiredArgsConstructor
 @RestController
@@ -18,14 +23,18 @@ public class MemberController {
     private final MemberService ms;
     private final MemberService service;
 
+    // ✅ JWT secretKey 주입
+    @Value("${jwt.secretKey}")
+    private String secretKey;
+
     // 회원가입 처리
     @PostMapping("members")
     public ResponseEntity insert(@RequestBody MemberDTO dto) {
         log.info("ctrl dto: {}", dto);
-        int result = ms.insert(dto);    // 인서트 호출 > 회원정보(dto) 넘김
-        if(result == 0) // 성공 여부( 0이면 회원가입 처리)
-        return ResponseEntity.status(HttpStatus.CREATED).build();
-         return ResponseEntity.status(HttpStatus.CONFLICT).build();
+        int result = ms.insert(dto);
+        if(result == 0)
+            return ResponseEntity.status(HttpStatus.CREATED).build();
+        return ResponseEntity.status(HttpStatus.CONFLICT).build();
     }
 
     @GetMapping("members")
@@ -42,11 +51,6 @@ public class MemberController {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
     }
 
-
-
-
-
-    // 페이징 처리
     @GetMapping("/members/list")
     public ResponseEntity<Page<MemberDTO>> pagedList(
             @RequestParam(defaultValue = "0") int page,
@@ -56,7 +60,6 @@ public class MemberController {
         return ResponseEntity.ok().body(result);
     }
 
-
     @GetMapping("/api/content/{number}")
     public ResponseEntity getContent(@PathVariable("number") long number){
         MemberDTO dto = ms.getContent(number);
@@ -65,48 +68,52 @@ public class MemberController {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
     }
 
-    // 회원 데이터 등록
     @PostMapping("api/content")
     public ResponseEntity insertContent(@RequestBody MemberDTO dto) {
         log.info("ctrl dto: {}", dto);
         int result = ms.insertContent(dto);
-        if(result == 1) // 성공이면 1로 처리
+        if(result == 1)
             return ResponseEntity.status(HttpStatus.CREATED).build();
         return ResponseEntity.status(HttpStatus.CONFLICT).build();
     }
 
-    // 로그인 API
+    // ✅ 로그인 + JWT 토큰 발급
     @PostMapping("/login")
-    public ResponseEntity login(@RequestBody MemberDTO dto) {
+    public ResponseEntity<?> login(@RequestBody MemberDTO dto) {
         log.info("login ctrl dto: {}", dto);
         MemberDTO result = ms.login(dto.getUserId(), dto.getPassword());
-        if (result != null)
-            return ResponseEntity.status(HttpStatus.OK).body(result);
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+
+        if (result != null) {
+            String token = JwtUtil.createToken(dto.getUserId(), secretKey, 60 * 60 * 1000L);
+
+            log.info("✅ 토큰 생성 완료: {}", token); // ← 로그로도 확인 가능
+
+            Map<String, String> response = new HashMap<>();
+            response.put("token", token);
+            response.put("message", "Login Success");
+
+            return ResponseEntity.ok(response);
+        }
+
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("로그인 실패");
     }
 
-    // 키워드로 검색
-    //  포스트맨 링크 검색 :  localhost:8080/members/search?keyword=김
+
     @GetMapping("/members/search")
     public ResponseEntity search(@RequestParam("keyword") String keyword) {
         List<MemberDTO> list = ms.searchByName(keyword);
         return ResponseEntity.ok().body(list);
     }
 
-    // 멤버 정보 수정
-    // 포스트맨 링크 : localhost:8080/members/user02
     @PutMapping("/members/{username}")
     public ResponseEntity update(@PathVariable("username") String userId,
                                  @RequestBody MemberDTO dto) {
-
         int result = ms.updateData(userId, dto);
         if(result == 1)
             return ResponseEntity.status(HttpStatus.OK).build();
         return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
     }
 
-    // 멤버 정보 삭제
-    // 포스트맨 링크 : localhost:8080/members/1
     @DeleteMapping("/members/{num}")
     public ResponseEntity deleteData(@PathVariable("num") Long num){
         int result = ms.deleteData(num);
@@ -115,12 +122,9 @@ public class MemberController {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
     }
 
-    //
     @PutMapping("/members/update")
     public ResponseEntity<String> updateMember(@RequestParam String userId, @RequestBody MemberDTO dto) {
         int result = service.updateData(userId, dto);
         return result > 0 ? ResponseEntity.ok("수정 성공") : ResponseEntity.badRequest().body("수정 실패");
     }
-
-
 }

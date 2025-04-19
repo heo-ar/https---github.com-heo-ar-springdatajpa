@@ -25,14 +25,14 @@ public class MemberEntity {
     @Column( unique = true, length = 20 )
     private String userId;  // user_id
 
-    @Column(nullable = false, length = 30)
-    private String password;
+    @Column(nullable = false, length = 100)
+    private String password;    // password
 
     @Column(name="user_name", nullable = false, length = 30)
-    private String userName;
+    private String userName;    //user_name
 
     @Column( name ="age")
-    private int age;
+    private int age;    // age
 
     public MemberEntity(MemberDTO dto){
         this.userId = dto.getUserId();
